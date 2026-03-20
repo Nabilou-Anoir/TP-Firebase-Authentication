@@ -1,3 +1,39 @@
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  sendPasswordResetEmail,
+  signOut,
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
+} from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDRmw_ajnMrW40Ty7i-WTyJWwhCvRBtrBQ",
+  authDomain: "tp-firebase-273e6.firebaseapp.com",
+  projectId: "tp-firebase-273e6",
+  storageBucket: "tp-firebase-273e6.firebasestorage.app",
+  messagingSenderId: "666456282030",
+  appId: "1:666456282030:web:c4e19d72266d1cd5c92e3f",
+  measurementId: "G-D11DK5YYL0"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
 function setMessage(elementId, text, type = "") {
   const element = document.getElementById(elementId);
   if (!element) return;
@@ -19,6 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (page === "login") {
     const loginForm = document.getElementById("login-form");
+    const googleLoginButton = document.getElementById("google-login-button");
 
     loginForm?.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -41,12 +78,52 @@ document.addEventListener("DOMContentLoaded", () => {
         "Formulaire prêt. À compléter avec Firebase Authentication (connexion).",
         "success"
       );
+      signInWithEmailAndPassword(auth, email, password)
+        .then((userCredential) => {
+          setMessage("login-message", "Connexion réussie.", "success");
+          window.location.href = "dashboard.html";
+        })
+        .catch((error) => {
+          let message = "Échec de la connexion.";
 
-      // TODO Firebase :
-      // 1. Importer/initialiser Firebase
-      // 2. Récupérer auth
-      // 3. Appeler signInWithEmailAndPassword(auth, email, password)
-      // 4. Rediriger vers dashboard.html en cas de succès (window.location.href = "dashboard.html")
+          if (error.code === "auth/invalid-credential") {
+            message = "E-mail ou mot de passe incorrect.";
+          } else if (error.code === "auth/user-not-found") {
+            message = "Compte inexistant.";
+          } else if (error.code === "auth/wrong-password") {
+            message = "Mot de passe incorrect.";
+          } else if (error.code === "auth/invalid-email") {
+            message = "Adresse e-mail invalide.";
+          }
+
+          setMessage("login-message", message, "error");
+          console.error(error);
+        });
+    });
+
+    googleLoginButton?.addEventListener("click", async () => {
+      try {
+        const result = await signInWithPopup(auth, googleProvider);
+        setMessage(
+          "login-message",
+          `Connexion Google réussie : ${result.user.email}`,
+          "success"
+        );
+        window.location.href = "dashboard.html";
+      } catch (error) {
+        let message = "Échec de la connexion avec Google.";
+
+        if (error.code === "auth/popup-closed-by-user") {
+          message = "La fenêtre Google a été fermée avant la connexion.";
+        } else if (error.code === "auth/cancelled-popup-request") {
+          message = "Connexion Google annulée.";
+        } else if (error.code === "auth/popup-blocked") {
+          message = "La fenêtre pop-up a été bloquée par le navigateur.";
+        }
+
+        setMessage("login-message", message, "error");
+        console.error(error);
+      }
     });
   }
 
@@ -91,8 +168,33 @@ document.addEventListener("DOMContentLoaded", () => {
         "success"
       );
 
-      // TODO Firebase :
-      // createUserWithEmailAndPassword...
+      createUserWithEmailAndPassword(auth, email, password)
+        .then(async (userCredential) => {
+          try {
+            await updateProfile(userCredential.user, {
+              displayName: name
+            });
+          } catch (e) {
+            console.error("Profil non mis à jour :", e);
+          }
+
+          setMessage("register-message", "Compte créé avec succès.", "success");
+          window.location.href = "dashboard.html";
+        })
+        .catch((error) => {
+          let message = "Impossible de créer le compte.";
+
+          if (error.code === "auth/email-already-in-use") {
+            message = "Un compte existe déjà avec cette adresse e-mail.";
+          } else if (error.code === "auth/invalid-email") {
+            message = "Adresse e-mail invalide.";
+          } else if (error.code === "auth/weak-password") {
+            message = "Mot de passe trop faible.";
+          }
+
+          setMessage("register-message", message, "error");
+          console.error(error);
+        });
     });
   }
 
@@ -120,8 +222,24 @@ document.addEventListener("DOMContentLoaded", () => {
         "success"
       );
 
-      // TODO Firebase :
-      // sendPasswordResetEmail...
+      sendPasswordResetEmail(auth, email)
+        .then(() => {
+          setMessage(
+            "forgot-message",
+            "E-mail de réinitialisation envoyé si l'adresse est reconnue.",
+            "success"
+          );
+        })
+        .catch((error) => {
+          let message = "Impossible d'envoyer l'e-mail de réinitialisation.";
+
+          if (error.code === "auth/invalid-email") {
+            message = "Adresse e-mail invalide.";
+          }
+
+          setMessage("forgot-message", message, "error");
+          console.error(error);
+        });
     });
   }
 
@@ -130,27 +248,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const logoutButton = document.getElementById("logout-button");
     const logoutLink = document.getElementById("logout-link");
 
-    if (userDisplay) {
-      userDisplay.textContent = "Professionnel connecté (simulation)";
-    }
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const name = user.displayName || "Utilisateur";
+        const email = user.email || "";
+        userDisplay.textContent = `${name} (${email})`;
+        setMessage("dashboard-message", "Utilisateur connecté.", "success");
+      } else {
+        window.location.href = "index.html";
+      }
+    });
 
-    const logoutHandler = (event) => {
+    const logoutHandler = async (event) => {
       event.preventDefault();
 
-      setMessage(
-        "dashboard-message",
-        "Déconnexion simulée. À compléter avec Firebase Authentication.",
-        "success"
-      );
-
-      // TODO Firebase : 
-      // signOut...
+      try {
+        await signOut(auth);
+        setMessage("dashboard-message", "Déconnexion réussie.", "success");
+        window.location.href = "index.html";
+      } catch (error) {
+        setMessage("dashboard-message", "Erreur lors de la déconnexion.", "error");
+        console.error(error);
+      }
     };
 
     logoutButton?.addEventListener("click", logoutHandler);
     logoutLink?.addEventListener("click", logoutHandler);
-
-    // TODO Firebase :
-    // onAuthStateChanged...
   }
 });
